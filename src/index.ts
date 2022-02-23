@@ -3,7 +3,7 @@ import { config } from "dotenv";
 import express from "express";
 import basicAuth from "express-basic-auth";
 import os from "os";
-import { collectDefaultMetrics, Registry } from "prom-client";
+import { collectDefaultMetrics, Gauge, Registry } from "prom-client";
 import ReactDOMServer from "react-dom/server";
 import shellies from "shellies";
 import { ListView } from "./layout/ListView";
@@ -14,9 +14,9 @@ export interface FoundShelly {
   settings: ShellySettings;
 }
 
+const found = new Map<string, FoundShelly>();
 async function main() {
   config();
-  const found = new Map<string, FoundShelly>();
   const username = process.env["SHELLY_USERNAME"] || "";
   const password = process.env["SHELLY_PASSWORD"] || "";
 
@@ -25,14 +25,13 @@ async function main() {
   collectDefaultMetrics({ register });
 
   const app = express();
-  app.use(
-    basicAuth({
-      users: { [username]: password },
-      challenge: true,
-      realm: "shellies.nlove",
-    })
-  );
-  app.get("/", (req, res) => {
+  const auth = basicAuth({
+    users: { [username]: password },
+    challenge: true,
+    realm: "shellies.nlove",
+  });
+
+  app.get("/", auth, (req, res) => {
     res.send(
       ReactDOMServer.renderToString(
         ListView({ devices: [...found.values()], username, password })
@@ -50,7 +49,14 @@ async function main() {
   const iface = getNetworkInterface();
   console.log(`Listen for shellies on ${iface}`);
   await shellies.start(iface);
+
   console.log("Started finding");
+
+  setupListener(username, password);
+  setupMetrics(register);
+}
+
+function setupListener(username: string, password: string) {
   const client = axios.create({
     auth: { username, password },
   });
@@ -116,6 +122,30 @@ function getNetworkInterface() {
   // ignore it
   console.warn(`Ignoring unknown network interface name or address ${iface}`);
   return null;
+}
+
+function setupMetrics(register: Registry) {
+  let devices = new Gauge({
+    name: "shellies_found_devices",
+    help: "How many devices did we find",
+    collect: () => {
+      devices.set(found.size);
+    },
+  });
+  let update: Gauge<string> = new Gauge({
+    name: "shellies_has_updates",
+    help: "Does the devices have an update",
+    labelNames: ["name"],
+    collect: () =>
+      found.forEach((f) =>
+        update.set(
+          { name: f.settings.name },
+          f.status.update.has_update ? 1 : 0
+        )
+      ),
+  });
+  register.registerMetric(devices);
+  register.registerMetric(update);
 }
 
 main().catch((e) => {

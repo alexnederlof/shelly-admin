@@ -10,10 +10,13 @@
   "dependencies": {
     "@types/react-dom": "^17.0.11",
     "axios": "^0.25.0",
+    "dotenv": "^16.0.0",
     "express": "^4.17.2",
+    "express-basic-auth": "^1.2.1",
     "prom-client": "^14.0.1",
     "react": "^17.0.2",
-    "react-dom": "^17.0.2"
+    "react-dom": "^17.0.2",
+    "shellies": "^1.7.0"
   },
   "devDependencies": {
     "@tsconfig/node16": "^1.0.2",
@@ -28,6 +31,7 @@
   },
   "scripts": {
     "prepare": "husky install",
-    "watch": "tsnodemon -x 'node dist/index.js'"
+    "watch": "tsnodemon -x 'node dist/index.js'",
+    "build": "tsc"
   }
 }

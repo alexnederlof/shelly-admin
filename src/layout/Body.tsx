@@ -1,7 +1,7 @@
 import React from "react";
 
 export interface Props {
-  children: JSX.Element;
+  children: JSX.Element[] | JSX.Element;
   title?: string;
 }
 

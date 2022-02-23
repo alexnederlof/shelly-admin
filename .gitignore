@@ -1,6 +1,6 @@
 node_modules/
-result.json
 *.log
-*.csv
-.env.prod
+.env
+dist/.env
+deploy.sh
 dist/

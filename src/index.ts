@@ -44,11 +44,15 @@ async function main() {
     res.contentType("text/plain").send(metrics);
   });
 
-  app.listen(3000, () => console.log("Started!"));
+  app.get("/health", (req, res) => {
+    if (shellies.running) {
+      return res.send("OK");
+    } else {
+      return res.status(500).send("Not listening");
+    }
+  });
 
-  const iface = getNetworkInterface();
-  console.log(`Listen for shellies on ${iface}`);
-  await shellies.start(iface);
+  app.listen(3000, () => console.log("Started!"));
 
   console.log("Started finding");
 
@@ -56,10 +60,13 @@ async function main() {
   setupMetrics(register);
 }
 
-function setupListener(username: string, password: string) {
+async function setupListener(username: string, password: string) {
   const client = axios.create({
     auth: { username, password },
   });
+  const iface = getNetworkInterface();
+  console.log(`Listen for shellies on ${iface}`);
+  await shellies.start(iface);
   shellies.on("discover", async (dev: Shelly) => {
     console.log(`Found ${dev.id} @ ${dev.host}`);
     try {
@@ -91,6 +98,8 @@ function setupListener(username: string, password: string) {
       }
     }
   });
+
+  shellies.on("stale", (dev: any) => console.log("Device is now stale", dev));
 }
 
 function getNetworkInterface() {

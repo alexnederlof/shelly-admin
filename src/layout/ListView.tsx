@@ -49,7 +49,7 @@ export function ListView(props: {
                   {status.mqtt.connected ? "connected" : "Not connected?"}
                 </td>
                 <td>{formatUpdate(status.update)}</td>
-                <td>{settings.hwinfo.hw_revision}</td>
+                <td>{settings.hwinfo?.hw_revision || "Not setome"}</td>
                 <td>{formatUptime(status.uptime)}</td>
               </tr>
             ))}

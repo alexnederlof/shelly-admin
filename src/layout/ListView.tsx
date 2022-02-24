@@ -7,6 +7,9 @@ export function ListView(props: {
   username: string;
   password: string;
 }) {
+  let devs = props.devices.sort((a, b) =>
+    a.settings.name.localeCompare(b.settings.name)
+  );
   return (
     <Body title="Your shellies">
       <>
@@ -25,7 +28,7 @@ export function ListView(props: {
             </tr>
           </thead>
           <tbody>
-            {props.devices.map(({ id, host, settings, status }, key) => (
+            {devs.map(({ id, host, settings, status }, key) => (
               <tr key={key}>
                 <td>
                   <a

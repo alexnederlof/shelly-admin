@@ -1,7 +1,8 @@
-import axios from "axios";
+import axios, { AxiosInstance } from "axios";
 import { config } from "dotenv";
 import express from "express";
 import basicAuth from "express-basic-auth";
+import fs from "fs-extra";
 import os from "os";
 import { collectDefaultMetrics, Gauge, Registry } from "prom-client";
 import ReactDOMServer from "react-dom/server";
@@ -12,18 +13,25 @@ export interface FoundShelly {
   host: string;
   status: ShellyStatus;
   settings: ShellySettings;
+  lastUpdate: Date;
 }
 
 const found = new Map<string, FoundShelly>();
+
+const CACHE_LOCATION = process.env["SHELLY_CACHE_FILE"] || "/data/devices.json";
+
 async function main() {
   config();
+
   const username = process.env["SHELLY_USERNAME"] || "";
   const password = process.env["SHELLY_PASSWORD"] || "";
+  const client = axios.create({
+    auth: { username, password },
+  });
 
   console.log("Creating prometheus registry");
   const register = new Registry();
   collectDefaultMetrics({ register });
-
   const app = express();
   const auth = basicAuth({
     users: { [username]: password },
@@ -31,7 +39,11 @@ async function main() {
     realm: "shellies.nlove",
   });
 
-  app.get("/", auth, (req, res) => {
+  app.get("/", auth, async (req, res) => {
+    if (req.query["add"]) {
+      const ip = req.query["add"] as string;
+      await loadDevice(client, ip);
+    }
     res.send(
       ReactDOMServer.renderToString(
         ListView({ devices: [...found.values()], username, password })
@@ -48,58 +60,76 @@ async function main() {
     if (shellies.running) {
       return res.send("OK");
     } else {
+      console.error("Shellies not running but ", shellies.running);
       return res.status(500).send("Not listening");
     }
   });
 
-  app.listen(3000, () => console.log("Started!"));
+  let port = Number(process.env["NODE_PORT"] || 3000);
+  app.listen(port, () => console.log("Started!"));
+
+  await loadCache();
 
   console.log("Started finding");
-
-  setupListener(username, password);
+  setupListener(client, username, password);
   setupMetrics(register);
+  process.on("SIGINT", shellies.stop);
+  process.on("SIGTERM", shellies.stop);
+  process.on("SIGHUP", shellies.stop);
 }
 
-async function setupListener(username: string, password: string) {
-  const client = axios.create({
-    auth: { username, password },
-  });
+async function setupListener(
+  client: AxiosInstance,
+  username: string,
+  password: string
+) {
   const iface = getNetworkInterface();
   console.log(`Listen for shellies on ${iface}`);
   await shellies.start(iface);
   shellies.on("discover", async (dev: Shelly) => {
     console.log(`Found ${dev.id} @ ${dev.host}`);
-    try {
-      const { data: status } = await client.get<ShellyStatus>(
-        `http://${dev.host}/status`
-      );
-      const { data: settings } = await client.get<ShellySettings>(
-        `http://${dev.host}/settings`
-      );
-      let toUpdate = found.get(dev.id);
-      if (toUpdate) {
-        console.log(`Found ${dev.id} @ ${dev.host} = ${settings.name}`);
-        toUpdate.status = status;
-        toUpdate.settings = settings;
-      } else {
-        console.log(`Adding ${dev.id} @ ${dev.host} = ${settings.name}`);
-        found.set(dev.id, {
-          id: dev.id,
-          host: dev.host,
-          settings,
-          status,
-        });
-      }
-    } catch (e: any) {
-      if (e.response) {
-        console.error("Cannot get status", e?.response);
-      } else {
-        console.error("Cannot get status", e);
-      }
-    }
+    dev.on("change", (prop, old, newVal) => {
+      console.log(`Device updated ${prop}="${newVal}" from "${old}"`);
+      loadDevice(client, dev.host);
+    });
+    await loadDevice(client, dev.host);
   });
 
   shellies.on("stale", (dev: any) => console.log("Device is now stale", dev));
+}
+
+async function loadDevice(client: AxiosInstance, host: string) {
+  try {
+    const { data: status } = await client.get<ShellyStatus>(
+      `http://${host}/status`
+    );
+    const { data: settings } = await client.get<ShellySettings>(
+      `http://${host}/settings`
+    );
+    let toUpdate = found.get(settings.device.hostname);
+    if (toUpdate) {
+      console.log(`Found ${host} = ${settings.name}`);
+      toUpdate.status = status;
+      toUpdate.settings = settings;
+      toUpdate.lastUpdate = new Date();
+    } else {
+      console.log(`Adding ${host} = ${settings.name}`);
+      found.set(settings.device.hostname, {
+        id: settings.device.mac,
+        host,
+        settings,
+        status,
+        lastUpdate: new Date(),
+      });
+    }
+    await writeCache();
+  } catch (e: any) {
+    if (e.response) {
+      console.error("Cannot get status", e?.response);
+    } else {
+      console.error("Cannot get status", e);
+    }
+  }
 }
 
 function getNetworkInterface() {
@@ -165,3 +195,25 @@ main().catch((e) => {
   }
   process.exit(1);
 });
+
+async function loadCache() {
+  try {
+    if (!(await fs.pathExists(CACHE_LOCATION))) {
+      console.log("No cache file found");
+      return;
+    }
+    console.log("Loading from " + CACHE_LOCATION);
+    const entries: FoundShelly[] = await fs.readJson(CACHE_LOCATION);
+    entries.forEach((e) => found.set(e.settings.device.hostname, e));
+  } catch (e) {
+    console.error("Could not read the cache ", e);
+  }
+}
+
+async function writeCache() {
+  try {
+    await fs.writeJson(CACHE_LOCATION, [...found.values()], { spaces: 2 });
+  } catch (e) {
+    console.error("Could not write the cache", e);
+  }
+}

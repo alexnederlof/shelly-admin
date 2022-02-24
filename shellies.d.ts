@@ -2,15 +2,21 @@ declare module "shellies";
 
 function on(type: "discover", listener: (device: Shelly) => void): void;
 function start(networkInterface?: unknown): Promise<any>;
+function stop(): void;
 function setAuthCredentials(username: string, password: string): void;
 const size: number;
 const running: boolean;
 [Symbol.iterator[Shelly]];
 
-class Shelly {
-  public id: string;
-  public name: string;
-  public host: string;
+interface Shelly {
+  id: string;
+  type: string;
+  name: string;
+  host: string;
+  on(
+    type: "change",
+    listener: (prop: string, newValue: any, oldValue: any) => void
+  ): void;
 }
 
 interface ShellyStatus {
@@ -63,6 +69,8 @@ interface ShellySettings {
   name: string;
   device: {
     type: string;
+    mac: string;
+    hostname: string;
   };
   hwinfo?: {
     hw_revision: string;

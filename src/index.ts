@@ -46,7 +46,12 @@ async function main() {
     }
     res.send(
       ReactDOMServer.renderToString(
-        ListView({ devices: [...found.values()], username, password })
+        ListView({
+          devices: [...found.values()],
+          username,
+          password,
+          sort: req.query["sort"] as string | undefined,
+        })
       )
     );
   });

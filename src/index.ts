@@ -88,7 +88,7 @@ async function main() {
     } catch (e) {
       console.error("Error during update", e);
     }
-  }, 3600_000);
+  }, 2 * 3600_000);
   updateDevices(client);
 }
 
@@ -98,9 +98,9 @@ async function setupListener(client: AxiosInstance) {
   await shellies.start(iface);
   shellies.on("discover", async (dev: Shelly) => {
     console.log(`Found ${dev.id} @ ${dev.host}`);
-    dev.on("change", (prop, old, newVal) => {
-      console.log(`${dev.name} updated ${prop}="${newVal}" from "${old}"`);
-    });
+    // dev.on("change", (prop, old, newVal) => {
+    //   console.log(`${dev.name} updated ${prop}="${newVal}" from "${old}"`);
+    // });
     await loadDevice(client, dev.host);
   });
 

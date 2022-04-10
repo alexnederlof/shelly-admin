@@ -76,26 +76,30 @@ async function main() {
   await loadCache();
 
   console.log("Started finding");
-  setupListener(client, username, password);
+  setupListener(client);
   setupMetrics(register);
   process.on("SIGINT", shellies.stop);
   process.on("SIGTERM", shellies.stop);
   process.on("SIGHUP", shellies.stop);
+
+  setInterval(async () => {
+    try {
+      updateDevices(client);
+    } catch (e) {
+      console.error("Error during update", e);
+    }
+  }, 3600_000);
+  updateDevices(client);
 }
 
-async function setupListener(
-  client: AxiosInstance,
-  username: string,
-  password: string
-) {
+async function setupListener(client: AxiosInstance) {
   const iface = getNetworkInterface();
   console.log(`Listen for shellies on ${iface}`);
   await shellies.start(iface);
   shellies.on("discover", async (dev: Shelly) => {
     console.log(`Found ${dev.id} @ ${dev.host}`);
     dev.on("change", (prop, old, newVal) => {
-      console.log(`Device updated ${prop}="${newVal}" from "${old}"`);
-      loadDevice(client, dev.host);
+      console.log(`${dev.name} updated ${prop}="${newVal}" from "${old}"`);
     });
     await loadDevice(client, dev.host);
   });
@@ -209,7 +213,12 @@ async function loadCache() {
     }
     console.log("Loading from " + CACHE_LOCATION);
     const entries: FoundShelly[] = await fs.readJson(CACHE_LOCATION);
-    entries.forEach((e) => found.set(e.settings.device.hostname, e));
+    entries.forEach((e) =>
+      found.set(e.settings.device.hostname, {
+        ...e,
+        lastUpdate: new Date(e.lastUpdate),
+      })
+    );
   } catch (e) {
     console.error("Could not read the cache ", e);
   }
@@ -220,5 +229,16 @@ async function writeCache() {
     await fs.writeJson(CACHE_LOCATION, [...found.values()], { spaces: 2 });
   } catch (e) {
     console.error("Could not write the cache", e);
+  }
+}
+
+async function updateDevices(axios: AxiosInstance) {
+  for (const shelly of found.values()) {
+    if (new Date().getTime() - shelly.lastUpdate.getTime() > 60_000) {
+      console.log(
+        `Updating ${shelly.settings.name || shelly.id} @ ${shelly.host}`
+      );
+      loadDevice(axios, shelly.host);
+    }
   }
 }

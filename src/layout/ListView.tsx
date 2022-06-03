@@ -7,8 +7,8 @@ const SORTERS: {
 } = {
   name: (a, b) => a.settings.name.localeCompare(b.settings.name),
   type: (a, b) => a.settings.device.type.localeCompare(b.settings.device.type),
-  ip: (a, b) => a.host.localeCompare(b.host),
   uptime: (a, b) => a.status.uptime - b.status.uptime,
+  update: (a, b) => (a.lastUpdate < b.lastUpdate ? 1 : 0),
   software: (a, b) =>
     a.status.update.old_version.localeCompare(b.status.update.old_version),
 };
@@ -36,22 +36,21 @@ export function ListView(props: {
               <th scope="col">
                 <a href="/?sort=type">Type</a>
               </th>
-              <th scope="col">
-                <a href="/?sort=ip">IP</a>
-              </th>
               <th scope="col">ID</th>
-              <th scope="col">MQTT</th>
               <th scope="col">
                 <a href="/?sort=software">Software</a>
               </th>
               <th scope="col">Hardware</th>
+              <th scope="col">
+                <a href="/?sort=update">Last update</a>
+              </th>
               <th scope="col">
                 <a href="/?sort=uptime">Uptime</a>
               </th>
             </tr>
           </thead>
           <tbody>
-            {devs.map(({ id, host, settings, status }, key) => (
+            {devs.map(({ id, host, settings, status, lastUpdate }, key) => (
               <tr key={key}>
                 <td>
                   <a
@@ -70,12 +69,13 @@ export function ListView(props: {
                 </td>
                 <td>{settings.device.type}</td>
                 <td>{host}</td>
-                <td>{id}</td>
                 <td>
-                  {status.mqtt.connected ? "connected" : "Not connected?"}
+                  {id}
+                  <br />
+                  HW: {settings.hwinfo?.hw_revision || "Not set"}
                 </td>
                 <td>{formatUpdate(status.update)}</td>
-                <td>{settings.hwinfo?.hw_revision || "Not set"}</td>
+                <td>{lastUpdate?.toLocaleString()}</td>
                 <td>{formatUptime(status.uptime)}</td>
               </tr>
             ))}

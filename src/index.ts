@@ -233,12 +233,12 @@ async function writeCache() {
 }
 
 async function updateDevices(axios: AxiosInstance) {
-  for (const shelly of found.values()) {
+  for await (const shelly of found.values()) {
     if (new Date().getTime() - shelly.lastUpdate.getTime() > 60_000) {
       console.log(
         `Updating ${shelly.settings.name || shelly.id} @ ${shelly.host}`
       );
-      loadDevice(axios, shelly.host);
+      await loadDevice(axios, shelly.host);
     }
   }
 }

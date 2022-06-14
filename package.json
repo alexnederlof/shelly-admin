@@ -20,7 +20,7 @@
     "shellies": "^1.7.0"
   },
   "devDependencies": {
-    "@tsconfig/node16": "^1.0.2",
+    "@tsconfig/node16": "^1.0.3",
     "@types/express": "^4.17.13",
     "@types/fs-extra": "^9.0.13",
     "@types/node": "^17.0.41",

@@ -15,7 +15,7 @@
     "express-basic-auth": "^1.2.1",
     "fs-extra": "^10.1.0",
     "prom-client": "^14.0.1",
-    "react": "^18.1.0",
+    "react": "^18.2.0",
     "react-dom": "^18.1.0",
     "shellies": "^1.7.0"
   },

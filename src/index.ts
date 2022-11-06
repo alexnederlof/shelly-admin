@@ -44,6 +44,10 @@ async function main() {
       const ip = req.query["add"] as string;
       await loadDevice(client, ip);
     }
+    if (req.query["update"]) {
+      await updateDevices(client);
+      return res.redirect("/");
+    }
     res.send(
       ReactDOMServer.renderToString(
         ListView({

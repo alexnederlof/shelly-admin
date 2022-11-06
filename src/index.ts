@@ -45,6 +45,7 @@ async function main() {
       await loadDevice(client, ip);
     }
     if (req.query["update"]) {
+      console.log("Forcing update");
       await updateDevices(client);
       return res.redirect("/");
     }

@@ -8,6 +8,15 @@ import { collectDefaultMetrics, Gauge, Registry } from "prom-client";
 import ReactDOMServer from "react-dom/server";
 import shellies from "shellies";
 import { ListView } from "./layout/ListView";
+import {
+  Device,
+  DeviceId,
+  MdnsDeviceDiscoverer,
+  Shellies as NgShellies,
+  ShellyPlus1,
+} from "@lazarbela/shellies-ng";
+import { ShellyPro4Pm } from "@lazarbela/shellies-ng";
+
 export interface FoundShelly {
   id: string;
   host: string;
@@ -56,8 +65,8 @@ async function main() {
           username,
           password,
           sort: req.query["sort"] as string | undefined,
-        })
-      )
+        }),
+      ),
     );
   });
 
@@ -80,8 +89,10 @@ async function main() {
 
   await loadCache();
 
-  console.log("Started finding");
-  setupListener(client);
+  const iface = getNetworkInterface() || undefined;
+  console.log(`Listen for shellies on ${iface}`);
+  setupListener(client, iface);
+  setupNextGenListener(iface);
   setupMetrics(register);
   process.on("SIGINT", shellies.stop);
   process.on("SIGTERM", shellies.stop);
@@ -97,9 +108,7 @@ async function main() {
   updateDevices(client);
 }
 
-async function setupListener(client: AxiosInstance) {
-  const iface = getNetworkInterface();
-  console.log(`Listen for shellies on ${iface}`);
+async function setupListener(client: AxiosInstance, iface?: string) {
   await shellies.start(iface);
   shellies.on("discover", async (dev: Shelly) => {
     console.log(`Found ${dev.id} @ ${dev.host}`);
@@ -115,10 +124,10 @@ async function setupListener(client: AxiosInstance) {
 async function loadDevice(client: AxiosInstance, host: string) {
   try {
     const { data: status } = await client.get<ShellyStatus>(
-      `http://${host}/status`
+      `http://${host}/status`,
     );
     const { data: settings } = await client.get<ShellySettings>(
-      `http://${host}/settings`
+      `http://${host}/settings`,
     );
     let toUpdate = found.get(settings.device.hostname);
     if (toUpdate) {
@@ -193,8 +202,8 @@ function setupMetrics(register: Registry) {
       found.forEach((f) =>
         update.set(
           { name: f.settings.name },
-          f.status.update.has_update ? 1 : 0
-        )
+          f.status.update.has_update ? 1 : 0,
+        ),
       ),
   });
   register.registerMetric(devices);
@@ -222,7 +231,7 @@ async function loadCache() {
       found.set(e.settings.device.hostname, {
         ...e,
         lastUpdate: new Date(e.lastUpdate),
-      })
+      }),
     );
   } catch (e) {
     console.error("Could not read the cache ", e);
@@ -241,9 +250,30 @@ async function updateDevices(axios: AxiosInstance) {
   for await (const shelly of found.values()) {
     if (new Date().getTime() - shelly.lastUpdate.getTime() > 60_000) {
       console.log(
-        `Updating ${shelly.settings.name || shelly.id} @ ${shelly.host}`
+        `Updating ${shelly.settings.name || shelly.id} @ ${shelly.host}`,
       );
       await loadDevice(axios, shelly.host);
     }
   }
+}
+
+async function setupNextGenListener(iface?: string) {
+  const shellies = new NgShellies();
+  // handle discovered devices
+  shellies.on("add", async (device: Device) => {
+    console.log(`${device.modelName} discovered`);
+    console.log(`ID: ${device.id}`, device);
+  });
+
+  // handle asynchronous errors
+  shellies.on("error", (deviceId: DeviceId, error: Error) => {
+    console.error("An error occured:", error.message);
+  });
+
+  // create an mDNS device discoverer
+  const discoverer = new MdnsDeviceDiscoverer({ interface: iface });
+  // register it
+  shellies.registerDiscoverer(discoverer);
+  // start discovering devices
+  discoverer.start();
 }

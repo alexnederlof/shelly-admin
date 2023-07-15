@@ -8,6 +8,7 @@
   "license": "MIT",
   "private": false,
   "dependencies": {
+    "@lazarbela/shellies-ng": "^1.6.1",
     "@types/fs-extra": "^11.0.1",
     "@types/react-dom": "^18.2.7",
     "axios": "^1.4.0",

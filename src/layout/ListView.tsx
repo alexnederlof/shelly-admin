@@ -5,12 +5,11 @@ import { Body } from "./Body";
 const SORTERS: {
   [key: string]: (one: FoundShelly, other: FoundShelly) => number;
 } = {
-  name: (a, b) => a.settings.name.localeCompare(b.settings.name),
-  type: (a, b) => a.settings.device.type.localeCompare(b.settings.device.type),
-  uptime: (a, b) => a.status.uptime - b.status.uptime,
+  name: (a, b) => a.name.localeCompare(b.name),
+  type: (a, b) => a.model.localeCompare(b.model),
+  uptime: (a, b) => a.uptime - b.uptime,
   update: (a, b) => (a.lastUpdate < b.lastUpdate ? 1 : 0),
-  software: (a, b) =>
-    a.status.update.old_version.localeCompare(b.status.update.old_version),
+  software: (a, b) => a.update.old_version.localeCompare(b.update.old_version),
 };
 
 export function ListView(props: {
@@ -50,35 +49,34 @@ export function ListView(props: {
             </tr>
           </thead>
           <tbody>
-            {devs.map(({ id, host, settings, status, lastUpdate }, key) => (
-              <tr key={key}>
-                <td>
-                  <a
-                    href={`http://${props.username}:${props.password}@${host}`}
-                    target="_blank"
-                  >
-                    {" "}
-                    {settings.name}
-                  </a>
-                  <pre style={{ display: "none" }}>
-                    {JSON.stringify(settings, null, 2)}
-                  </pre>
-                  <pre style={{ display: "none" }}>
-                    {JSON.stringify(status, null, 2)}
-                  </pre>
-                </td>
-                <td>{settings.device.type}</td>
-                <td>{host}</td>
-                <td>
-                  {id}
-                  <br />
-                  HW: {settings.hwinfo?.hw_revision || "Not set"}
-                </td>
-                <td>{formatUpdate(status.update)}</td>
-                <td>{lastUpdate?.toLocaleString()}</td>
-                <td>{formatUptime(status.uptime)}</td>
-              </tr>
-            ))}
+            {devs.map(
+              (
+                { id, host, name, model, hwModel, update, uptime, lastUpdate },
+                key,
+              ) => (
+                <tr key={key}>
+                  <td>
+                    <a
+                      href={`http://${props.username}:${props.password}@${host}`}
+                      target="_blank"
+                    >
+                      {" "}
+                      {name}
+                    </a>
+                  </td>
+                  <td>{model}</td>
+                  <td>{host}</td>
+                  <td>
+                    {id}
+                    <br />
+                    HW: {hwModel || "Not set"}
+                  </td>
+                  <td>{formatUpdate(update)}</td>
+                  <td>{lastUpdate?.toLocaleString()}</td>
+                  <td>{formatUptime(uptime)}</td>
+                </tr>
+              ),
+            )}
           </tbody>
         </table>
       </>

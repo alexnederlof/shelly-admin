@@ -13,15 +13,16 @@ import {
   DeviceId,
   MdnsDeviceDiscoverer,
   Shellies as NgShellies,
-  ShellyPlus1,
 } from "@lazarbela/shellies-ng";
-import { ShellyPro4Pm } from "@lazarbela/shellies-ng";
 
 export interface FoundShelly {
   id: string;
   host: string;
-  status: ShellyStatus;
-  settings: ShellySettings;
+  update: Update;
+  uptime: number;
+  name: string;
+  model: string;
+  hwModel?: string;
   lastUpdate: Date;
 }
 
@@ -91,8 +92,12 @@ async function main() {
 
   const iface = getNetworkInterface() || undefined;
   console.log(`Listen for shellies on ${iface}`);
-  setupListener(client, iface);
-  setupNextGenListener(iface);
+  setupListener(client, iface).catch((e) =>
+    console.error("Error during OG discovery", e),
+  );
+  setupNextGenListener(iface).catch((e) =>
+    console.error("Error during next gen discovery", e),
+  );
   setupMetrics(register);
   process.on("SIGINT", shellies.stop);
   process.on("SIGTERM", shellies.stop);
@@ -129,20 +134,26 @@ async function loadDevice(client: AxiosInstance, host: string) {
     const { data: settings } = await client.get<ShellySettings>(
       `http://${host}/settings`,
     );
-    let toUpdate = found.get(settings.device.hostname);
+    let toUpdate = found.get(settings.device.mac);
     if (toUpdate) {
       console.log(`Found ${host} = ${settings.name}`);
-      toUpdate.status = status;
-      toUpdate.settings = settings;
+      toUpdate.hwModel = settings.hwinfo?.hw_revision;
+      toUpdate.model = settings.device.type;
+      toUpdate.name = settings.name;
+      toUpdate.update = status.update;
+      toUpdate.uptime = status.uptime;
       toUpdate.lastUpdate = new Date();
     } else {
       console.log(`Adding ${host} = ${settings.name}`);
-      found.set(settings.device.hostname, {
+      found.set(settings.device.mac, {
         id: settings.device.mac,
         host,
-        settings,
-        status,
         lastUpdate: new Date(),
+        hwModel: settings.hwinfo?.hw_revision,
+        model: settings.device.type,
+        name: settings.name,
+        update: status.update,
+        uptime: status.uptime,
       });
     }
     await writeCache();
@@ -200,10 +211,7 @@ function setupMetrics(register: Registry) {
     labelNames: ["name"],
     collect: () =>
       found.forEach((f) =>
-        update.set(
-          { name: f.settings.name },
-          f.status.update.has_update ? 1 : 0,
-        ),
+        update.set({ name: f.name }, f.update.has_update ? 1 : 0),
       ),
   });
   register.registerMetric(devices);
@@ -228,7 +236,7 @@ async function loadCache() {
     console.log("Loading from " + CACHE_LOCATION);
     const entries: FoundShelly[] = await fs.readJson(CACHE_LOCATION);
     entries.forEach((e) =>
-      found.set(e.settings.device.hostname, {
+      found.set(e.id, {
         ...e,
         lastUpdate: new Date(e.lastUpdate),
       }),
@@ -249,9 +257,7 @@ async function writeCache() {
 async function updateDevices(axios: AxiosInstance) {
   for await (const shelly of found.values()) {
     if (new Date().getTime() - shelly.lastUpdate.getTime() > 60_000) {
-      console.log(
-        `Updating ${shelly.settings.name || shelly.id} @ ${shelly.host}`,
-      );
+      console.log(`Updating ${shelly.name || shelly.id} @ ${shelly.host}`);
       await loadDevice(axios, shelly.host);
     }
   }
@@ -268,6 +274,38 @@ async function setupNextGenListener(iface?: string) {
     device.on("change", (prop, old, newVal) => {
       console.log(`${device.id} updated ${prop}="${newVal}" from "${old}"`);
     });
+
+    const name = device.shelly.name;
+    let toUpdate = found.get(device.id);
+    const status = await device.shelly.getStatus();
+    let update: Update = {
+      has_update: !!device.system.available_updates.stable,
+      new_version: device.system.available_updates.stable?.version || "",
+      old_version: device.firmware.version! || "",
+      status: "",
+    };
+    let available_updates = device.system.available_updates.stable;
+    if (toUpdate) {
+      console.log(`Found ${device.id} = ${device.shelly.name}`);
+      toUpdate.model = device.modelName;
+      toUpdate.name = device.shelly.name;
+      toUpdate.update = update;
+      toUpdate.uptime = status.sys?.uptime || 0;
+      toUpdate.lastUpdate = new Date();
+    } else {
+      console.log(`Adding ${device.id} = ${device.shelly.name}`);
+      found.set(device.id, {
+        id: device.id,
+        model: device.modelName,
+        name: device.shelly.name,
+        update: update,
+        uptime: status.sys?.uptime || 0,
+        lastUpdate: new Date(),
+        host:
+          [status.eth?.ip, status.wifi?.sta_ip].filter((x) => x)[0] ||
+          "unknown",
+      });
+    }
   });
 
   // handle asynchronous errors
@@ -277,6 +315,7 @@ async function setupNextGenListener(iface?: string) {
 
   // create an mDNS device discoverer
   const discoverer = new MdnsDeviceDiscoverer({ interface: iface });
+
   // register it
   shellies.registerDiscoverer(discoverer);
   // start discovering devices

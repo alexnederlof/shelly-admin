@@ -258,11 +258,16 @@ async function updateDevices(axios: AxiosInstance) {
 }
 
 async function setupNextGenListener(iface?: string) {
-  const shellies = new NgShellies();
+  const shellies = new NgShellies({
+    autoLoadConfig: true,
+    autoLoadStatus: true,
+  });
   // handle discovered devices
   shellies.on("add", async (device: Device) => {
-    console.log(`${device.modelName} discovered`);
-    console.log(`ID: ${device.id}`, device);
+    console.log(`Next Gen ${device.modelName} discovered with ID ${device.id}`);
+    device.on("change", (prop, old, newVal) => {
+      console.log(`${device.id} updated ${prop}="${newVal}" from "${old}"`);
+    });
   });
 
   // handle asynchronous errors
@@ -275,5 +280,6 @@ async function setupNextGenListener(iface?: string) {
   // register it
   shellies.registerDiscoverer(discoverer);
   // start discovering devices
-  discoverer.start();
+  console.log("Started next gen discovery");
+  await discoverer.start();
 }

@@ -279,12 +279,11 @@ async function setupNextGenListener(iface?: string) {
     let toUpdate = found.get(device.id);
     const status = await device.shelly.getStatus();
     let update: Update = {
-      has_update: !!device.system.available_updates.stable,
+      has_update: device.system.available_updates.stable !== undefined,
       new_version: device.system.available_updates.stable?.version || "",
       old_version: device.firmware.version! || "",
       status: "",
     };
-    let available_updates = device.system.available_updates.stable;
     if (toUpdate) {
       console.log(`Found ${device.id} = ${device.shelly.name}`);
       toUpdate.model = device.modelName;

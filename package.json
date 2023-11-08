@@ -9,7 +9,7 @@
   "private": false,
   "dependencies": {
     "@lazarbela/shellies-ng": "^1.6.1",
-    "@types/fs-extra": "^11.0.3",
+    "@types/fs-extra": "^11.0.4",
     "@types/react-dom": "^18.2.14",
     "axios": "^1.6.0",
     "dotenv": "^16.3.1",

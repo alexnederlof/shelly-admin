@@ -86,7 +86,7 @@ async function main() {
   });
 
   let port = Number(process.env["NODE_PORT"] || 3000);
-  app.listen(port, () => console.log("Started!"));
+  app.listen(port, () => console.log(`Started on http://localhost:${port}`));
 
   await loadCache();
 

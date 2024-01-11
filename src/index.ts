@@ -114,6 +114,8 @@ async function main() {
 }
 
 async function setupListener(client: AxiosInstance, iface?: string) {
+  let myIp = getIpV4Address();
+  console.log(`Listening on ${myIp}, interface ${iface || "default"}`);
   await shellies.start(iface);
   shellies.on("discover", async (dev: Shelly) => {
     console.log(`Found ${dev.id} @ ${dev.host}`);
@@ -320,4 +322,14 @@ async function setupNextGenListener(iface?: string) {
   // start discovering devices
   console.log("Started next gen discovery");
   await discoverer.start();
+}
+
+/**
+ *
+ * @returns The IPv4 address of the first non-internal network interface
+ */
+function getIpV4Address() {
+  return Object.entries(os.networkInterfaces())
+    ?.flatMap(([key, addresses]) => addresses)
+    .find((a) => a && a.family === "IPv4" && !a.internal)?.address;
 }
